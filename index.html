@@ -2,15 +2,14 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>市民税＋県民税 所得割 合算アプリ</title>
+  <title>所得割 高精度抽出</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2/dist/tesseract.min.js"></script>
 </head>
 <body>
-  <h2>市民税＋県民税 所得割 合算</h2>
+  <h2>市民税＋県民税 所得割合算（高精度版）</h2>
 
   <input type="file" id="imageInput">
   <br><br>
-
   <button onclick="runOCR()">読み取り</button>
 
   <p id="result"></p>
@@ -24,43 +23,45 @@
         file,
         'jpn',
         { logger: m => console.log(m) }
-      ).then(({ data: { text } }) => {
+      ).then(({ data }) => {
 
-        const lines = text.split("\n");
+        const words = data.words;
 
         let cityTax = 0;
         let prefectureTax = 0;
 
-        lines.forEach(line => {
+        for (let i = 0; i < words.length; i++) {
 
-          // カンマ付き数字抽出
-          const numberMatch = line.match(/[0-9,]+/);
-          if (!numberMatch) return;
+          const word = words[i].text;
 
-          const amount = Number(numberMatch[0].replace(/,/g, ""));
+          // 「所得割」を検出
+          if (word.includes("所得割")) {
 
-          // 市民税系
-          if (
-            (line.includes("市民税") ||
-             line.includes("町民税") ||
-             line.includes("区民税")) &&
-            line.includes("所得割")
-          ) {
-            cityTax = amount;
+            // 右側の単語を順に確認
+            for (let j = i + 1; j < i + 6 && j < words.length; j++) {
+
+              const candidate = words[j].text.replace(/,/g, "");
+
+              if (/^\d+$/.test(candidate)) {
+
+                // 左側に市民税 or 県民税があるか確認
+                const context = words.slice(Math.max(0, i - 5), i)
+                                     .map(w => w.text)
+                                     .join("");
+
+                if (context.match(/市民税|区民税|町民税/)) {
+                  cityTax = Number(candidate);
+                }
+
+                if (context.match(/県民税|都民税|道民税|府民税/)) {
+                  prefectureTax = Number(candidate);
+                }
+
+                break;
+              }
+            }
           }
-
-          // 県民税系
-          if (
-            (line.includes("県民税") ||
-             line.includes("都民税") ||
-             line.includes("道民税") ||
-             line.includes("府民税")) &&
-            line.includes("所得割")
-          ) {
-            prefectureTax = amount;
-          }
-
-        });
+        }
 
         const total = cityTax + prefectureTax;
 
