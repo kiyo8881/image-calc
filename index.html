@@ -2,12 +2,12 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>所得割 精密抽出</title>
+<title>所得割 座標解析版</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2/dist/tesseract.min.js"></script>
 </head>
 <body>
 
-<h2>市民税＋県民税 所得割合算（強化版）</h2>
+<h2>市民税＋県民税 所得割合算（最安定版）</h2>
 
 <input type="file" id="imageInput">
 <br><br>
@@ -22,28 +22,50 @@ function runOCR() {
   if (!file) return;
 
   Tesseract.recognize(file, 'jpn')
-  .then(({ data: { text } }) => {
+  .then(({ data }) => {
 
-    // 改行・空白を除去
-    const cleanText = text.replace(/\s+/g, "");
+    const words = data.words;
 
-    // 市民税 所得割 抽出
-    const cityMatch = cleanText.match(
-      /(市民税|区民税|町民税).*?所得割.*?([0-9,]+)/
-    );
+    let cityTax = 0;
+    let prefTax = 0;
 
-    // 県民税 所得割 抽出
-    const prefMatch = cleanText.match(
-      /(県民税|都民税|道民税|府民税).*?所得割.*?([0-9,]+)/
-    );
+    words.forEach((word, index) => {
 
-    const cityTax = cityMatch
-      ? Number(cityMatch[2].replace(/,/g,""))
-      : 0;
+      if (word.text.includes("所得")) {
 
-    const prefTax = prefMatch
-      ? Number(prefMatch[2].replace(/,/g,""))
-      : 0;
+        const y = word.bbox.y0;
+
+        // 同じ高さ付近の単語を探す
+        words.forEach(candidate => {
+
+          const sameLine = Math.abs(candidate.bbox.y0 - y) < 15;
+
+          if (sameLine) {
+
+            const num = candidate.text.replace(/,/g, "");
+
+            if (/^\d+$/.test(num)) {
+
+              // 左側にある税区分を探す
+              const leftWords = words.filter(w =>
+                w.bbox.x1 < word.bbox.x0 &&
+                Math.abs(w.bbox.y0 - y) < 15
+              );
+
+              const context = leftWords.map(w => w.text).join("");
+
+              if (context.match(/市民税|区民税|町民税/)) {
+                cityTax = Number(num);
+              }
+
+              if (context.match(/県民税|都民税|道民税|府民税/)) {
+                prefTax = Number(num);
+              }
+            }
+          }
+        });
+      }
+    });
 
     const total = cityTax + prefTax;
 
@@ -51,7 +73,6 @@ function runOCR() {
       "市民税所得割: " + cityTax.toLocaleString() + " 円<br>" +
       "県民税所得割: " + prefTax.toLocaleString() + " 円<br><br>" +
       "<strong>合計: " + total.toLocaleString() + " 円</strong>";
-
   });
 }
 </script>
