@@ -1,76 +1,60 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>所得割 高精度抽出</title>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2/dist/tesseract.min.js"></script>
+<meta charset="UTF-8">
+<title>所得割 精密抽出</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@2/dist/tesseract.min.js"></script>
 </head>
 <body>
-  <h2>市民税＋県民税 所得割合算（高精度版）</h2>
 
-  <input type="file" id="imageInput">
-  <br><br>
-  <button onclick="runOCR()">読み取り</button>
+<h2>市民税＋県民税 所得割合算（強化版）</h2>
 
-  <p id="result"></p>
+<input type="file" id="imageInput">
+<br><br>
+<button onclick="runOCR()">読み取り</button>
 
-  <script>
-    function runOCR() {
-      const file = document.getElementById('imageInput').files[0];
-      if (!file) return;
+<p id="result"></p>
 
-      Tesseract.recognize(
-        file,
-        'jpn',
-        { logger: m => console.log(m) }
-      ).then(({ data }) => {
+<script>
+function runOCR() {
 
-        const words = data.words;
+  const file = document.getElementById('imageInput').files[0];
+  if (!file) return;
 
-        let cityTax = 0;
-        let prefectureTax = 0;
+  Tesseract.recognize(file, 'jpn')
+  .then(({ data: { text } }) => {
 
-        for (let i = 0; i < words.length; i++) {
+    // 改行・空白を除去
+    const cleanText = text.replace(/\s+/g, "");
 
-          const word = words[i].text;
+    // 市民税 所得割 抽出
+    const cityMatch = cleanText.match(
+      /(市民税|区民税|町民税).*?所得割.*?([0-9,]+)/
+    );
 
-          // 「所得割」を検出
-          if (word.includes("所得割")) {
+    // 県民税 所得割 抽出
+    const prefMatch = cleanText.match(
+      /(県民税|都民税|道民税|府民税).*?所得割.*?([0-9,]+)/
+    );
 
-            // 右側の単語を順に確認
-            for (let j = i + 1; j < i + 6 && j < words.length; j++) {
+    const cityTax = cityMatch
+      ? Number(cityMatch[2].replace(/,/g,""))
+      : 0;
 
-              const candidate = words[j].text.replace(/,/g, "");
+    const prefTax = prefMatch
+      ? Number(prefMatch[2].replace(/,/g,""))
+      : 0;
 
-              if (/^\d+$/.test(candidate)) {
+    const total = cityTax + prefTax;
 
-                // 左側に市民税 or 県民税があるか確認
-                const context = words.slice(Math.max(0, i - 5), i)
-                                     .map(w => w.text)
-                                     .join("");
+    document.getElementById("result").innerHTML =
+      "市民税所得割: " + cityTax.toLocaleString() + " 円<br>" +
+      "県民税所得割: " + prefTax.toLocaleString() + " 円<br><br>" +
+      "<strong>合計: " + total.toLocaleString() + " 円</strong>";
 
-                if (context.match(/市民税|区民税|町民税/)) {
-                  cityTax = Number(candidate);
-                }
+  });
+}
+</script>
 
-                if (context.match(/県民税|都民税|道民税|府民税/)) {
-                  prefectureTax = Number(candidate);
-                }
-
-                break;
-              }
-            }
-          }
-        }
-
-        const total = cityTax + prefectureTax;
-
-        document.getElementById("result").innerHTML =
-          "市民税所得割: " + cityTax.toLocaleString() + " 円<br>" +
-          "県民税所得割: " + prefectureTax.toLocaleString() + " 円<br><br>" +
-          "<strong>合計: " + total.toLocaleString() + " 円</strong>";
-      });
-    }
-  </script>
 </body>
 </html>
