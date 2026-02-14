@@ -2,12 +2,12 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>所得割 座標解析版</title>
+<title>所得割 完全対応版</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2/dist/tesseract.min.js"></script>
 </head>
 <body>
 
-<h2>市民税＋県民税 所得割合算（最安定版）</h2>
+<h2>市民税＋県民税 所得割合算（完全対応版）</h2>
 
 <input type="file" id="imageInput">
 <br><br>
@@ -29,41 +29,48 @@ function runOCR() {
     let cityTax = 0;
     let prefTax = 0;
 
-    words.forEach((word, index) => {
+    words.forEach(word => {
 
       if (word.text.includes("所得")) {
 
         const y = word.bbox.y0;
 
-        // 同じ高さ付近の単語を探す
-        words.forEach(candidate => {
+        // 同じ高さで右側の文字を取得
+        const sameLineRight = words.filter(w =>
+          Math.abs(w.bbox.y0 - y) < 15 &&
+          w.bbox.x0 > word.bbox.x1
+        );
 
-          const sameLine = Math.abs(candidate.bbox.y0 - y) < 15;
+        // 数字だけ抽出
+        let digits = "";
 
-          if (sameLine) {
-
-            const num = candidate.text.replace(/,/g, "");
-
-            if (/^\d+$/.test(num)) {
-
-              // 左側にある税区分を探す
-              const leftWords = words.filter(w =>
-                w.bbox.x1 < word.bbox.x0 &&
-                Math.abs(w.bbox.y0 - y) < 15
-              );
-
-              const context = leftWords.map(w => w.text).join("");
-
-              if (context.match(/市民税|区民税|町民税/)) {
-                cityTax = Number(num);
-              }
-
-              if (context.match(/県民税|都民税|道民税|府民税/)) {
-                prefTax = Number(num);
-              }
-            }
+        sameLineRight.forEach(w => {
+          if (/^[0-9]$/.test(w.text)) {
+            digits += w.text;
+          }
+          if (/^[0-9,]+$/.test(w.text)) {
+            digits += w.text.replace(/,/g, "");
           }
         });
+
+        if (digits.length > 0) {
+
+          // 左側の税区分取得
+          const leftSide = words.filter(w =>
+            Math.abs(w.bbox.y0 - y) < 15 &&
+            w.bbox.x1 < word.bbox.x0
+          );
+
+          const context = leftSide.map(w => w.text).join("");
+
+          if (context.match(/市民税|区民税|町民税/)) {
+            cityTax = Number(digits);
+          }
+
+          if (context.match(/県民税|都民税|道民税|府民税/)) {
+            prefTax = Number(digits);
+          }
+        }
       }
     });
 
@@ -73,6 +80,7 @@ function runOCR() {
       "市民税所得割: " + cityTax.toLocaleString() + " 円<br>" +
       "県民税所得割: " + prefTax.toLocaleString() + " 円<br><br>" +
       "<strong>合計: " + total.toLocaleString() + " 円</strong>";
+
   });
 }
 </script>
