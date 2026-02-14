@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>市民税＋県民税 所得割 合算アプリ</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2/dist/tesseract.min.js"></script>
+</head>
+<body>
+  <h2>市民税＋県民税 所得割 合算</h2>
+
+  <input type="file" id="imageInput">
+  <br><br>
+
+  <button onclick="runOCR()">読み取り</button>
+
+  <p id="result"></p>
+
+  <script>
+    function runOCR() {
+      const file = document.getElementById('imageInput').files[0];
+      if (!file) return;
+
+      Tesseract.recognize(
+        file,
+        'jpn',
+        { logger: m => console.log(m) }
+      ).then(({ data: { text } }) => {
+
+        const lines = text.split("\n");
+
+        let cityTax = 0;
+        let prefectureTax = 0;
+
+        lines.forEach(line => {
+
+          // カンマ付き数字抽出
+          const numberMatch = line.match(/[0-9,]+/);
+          if (!numberMatch) return;
+
+          const amount = Number(numberMatch[0].replace(/,/g, ""));
+
+          // 市民税系
+          if (
+            (line.includes("市民税") ||
+             line.includes("町民税") ||
+             line.includes("区民税")) &&
+            line.includes("所得割")
+          ) {
+            cityTax = amount;
+          }
+
+          // 県民税系
+          if (
+            (line.includes("県民税") ||
+             line.includes("都民税") ||
+             line.includes("道民税") ||
+             line.includes("府民税")) &&
+            line.includes("所得割")
+          ) {
+            prefectureTax = amount;
+          }
+
+        });
+
+        const total = cityTax + prefectureTax;
+
+        document.getElementById("result").innerHTML =
+          "市民税所得割: " + cityTax.toLocaleString() + " 円<br>" +
+          "県民税所得割: " + prefectureTax.toLocaleString() + " 円<br><br>" +
+          "<strong>合計: " + total.toLocaleString() + " 円</strong>";
+      });
+    }
+  </script>
+</body>
+</html>
